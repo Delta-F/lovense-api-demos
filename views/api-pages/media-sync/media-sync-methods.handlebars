@@ -1434,7 +1434,6 @@ async function loadMultiplePatterns() {
     }
 
     const patterns = [];
-    let hasValidPattern = false;
 
     // Process each pattern card
     patternCards.forEach((card, index) => {
@@ -1472,16 +1471,10 @@ async function loadMultiplePatterns() {
             updateRequestInfo('multiplePatternRequestInfo', `<div class="req-out">❌ Invalid JSON in Pattern Data ${index + 1}: ${e.message}</div>`);
             return;
         }
-
         patterns.push(pattern);
-        hasValidPattern = true;
     });
 
-    if (!hasValidPattern) {
-        return;
-    }
-
-            // Display request details
+        // Display request details
         const toyIdInfo = patterns.map((p, index) => {
             const patternName = `Toy Pattern ${index + 1}`;
             

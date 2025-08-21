@@ -224,11 +224,18 @@ function switchMediaTab(type) {
 
 // Step 1: Get CToken
 async function getCToken() {
-    const userId = document.getElementById('userId').value;
+    // 自动生成6位随机数，格式 dt_123456
+    const randomNum = Math.floor(100000 + Math.random() * 900000); // 生成100000-999999之间的随机数
+    const generatedUserId = `dt_${randomNum}`;
+    
+    // 自动填充到userId输入框
+    document.getElementById('userId').value = generatedUserId;
+    
+    const userId = generatedUserId;
     const developerToken = document.getElementById('developerToken').value;
     
-    if (!userId || !developerToken) {
-        setResponse('ctokenResponse', 'Error: Please enter both User ID and Developer Token');
+    if (!developerToken) {
+        setResponse('ctokenResponse', 'Error: Please enter Developer Token');
         return;
     }
 
@@ -422,10 +429,17 @@ function setResponse(id, value) {
     document.getElementById(id).innerHTML = cleanResponseText(value);
 }
 async function getCToken() {
-    const userId = document.getElementById('userId').value;
+    // 自动生成6位随机数，格式 dt_123456
+    const randomNum = Math.floor(100000 + Math.random() * 900000); // 生成100000-999999之间的随机数
+    const generatedUserId = `dt_${randomNum}`;
+    
+    // 自动填充到userId输入框
+    document.getElementById('userId').value = generatedUserId;
+    
+    const userId = generatedUserId;
     const developerToken = document.getElementById('developerToken').value;
-    if (!userId || !developerToken) {
-        setResponse('ctokenResponse', 'Error: Please enter both User ID and Developer Token');
+    if (!developerToken) {
+        setResponse('ctokenResponse', 'Error: Please enter Developer Token');
         return;
     }
     try {
