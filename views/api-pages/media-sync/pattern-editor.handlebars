@@ -54,18 +54,18 @@
             <p class="info-text">Configure pattern data. Choose Pattern Link or Pattern Data.</p>
             
             <!-- Pattern Configuration Cards -->
-            <div class="pattern-cards">
-                <div class="pattern-card" id="patternLinkCard">
+            <div class="pattern-cards" id="patternCards">
+                <div class="pattern-card active" id="patternLinkCard">
                     <div class="card-header">
                         <h4>📎 Pattern Link (URL)</h4>
                         <p>Use a remote pattern file</p>
                     </div>
                     <div class="card-content">
-                        <input type="url" id="patternLink" class="form-control" placeholder="https://example.com/pattern.funscript or https://example.com/pattern.json">
+                        <input type="url" id="patternLink" class="form-control" placeholder="https://raw.githubusercontent.com/Delta-F/lovense-api-demos/main/public/samples/lovense-demo-sample.funscript">
                     </div>
                 </div>
                 
-                <div class="pattern-card active" id="patternDataCard">
+                <div class="pattern-card" id="patternDataCard">
                     <div class="card-header">
                         <h4>📝 Pattern Data (JSON)</h4>
                         <p>Enter pattern data directly</p>
@@ -98,15 +98,15 @@
                 <div class="input-row">
                     <div class="input-group compact">
                         <label>Supported App:</label>
-                        <div class="checkbox-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="app1" onclick="selectSupportedApp('app1')"> Lovense Remote
+                        <div class="radio-group" role="radiogroup" aria-label="Supported App">
+                            <label class="radio-label">
+                                <input type="radio" name="supportedApp" value="1" checked> Lovense Remote
                             </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="app2" onclick="selectSupportedApp('app2')"> VibeMate
+                            <label class="radio-label">
+                                <input type="radio" name="supportedApp" value="2"> VibeMate
                             </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="app3" onclick="selectSupportedApp('app3')" checked> Both
+                            <label class="radio-label">
+                                <input type="radio" name="supportedApp" value="3"> Both
                             </label>
                         </div>
                     </div>
@@ -186,6 +186,8 @@ let currentCToken = null;
 let syncConfigured = false;
 let currentMediaType = 'audio';
 
+const DEFAULT_FUNSCRIPT_SAMPLE_URL = 'https://raw.githubusercontent.com/Delta-F/lovense-api-demos/main/public/samples/lovense-demo-sample.funscript';
+
 function switchMediaTab(type) {
     const audioTab = document.getElementById('audioTab');
     const videoTab = document.getElementById('videoTab');
@@ -224,36 +226,34 @@ function switchMediaTab(type) {
 
 // Step 1: Get CToken
 async function getCToken() {
-    // 自动生成6位随机数，格式 dt_123456
-    const randomNum = Math.floor(100000 + Math.random() * 900000); // 生成100000-999999之间的随机数
+    // Auto-generate user id: dt_ + 6-digit random (100000–999999)
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
     const generatedUserId = `dt_${randomNum}`;
-    
-    // 自动填充到userId输入框
+
+    // Fill userId input
     document.getElementById('userId').value = generatedUserId;
-    
-    const userId = generatedUserId;
     const developerToken = document.getElementById('developerToken').value;
-    
+
     if (!developerToken) {
         setResponse('ctokenResponse', 'Error: Please enter Developer Token');
         return;
     }
 
     try {
-        const url = `https://api.lovense-api.com/api/media/pattern/user/ctoken?userId=${encodeURIComponent(userId)}&developerToken=${encodeURIComponent(developerToken)}`;
-        
-        document.getElementById('ctokenRequestUrl').innerHTML = `URL: ${url}`;
+        const url = `https://api.lovense-api.com/api/media/pattern/user/ctoken?userId=${encodeURIComponent(generatedUserId)}&developerToken=${encodeURIComponent(developerToken)}`;
+
+        document.getElementById('ctokenRequestUrl').innerHTML = 'URL: ' + url;
         const response = await axios.get(url);
-        
-        document.getElementById('ctokenResponseTime').innerHTML = `Timestamp: ${getTimestamp()}`;
+
+        stampTime('ctokenResponseTime');
         setResponse('ctokenResponse', JSON.stringify(response.data, null, 2) + ((response.data && response.data.code === 0) ? '' : '\n❌ Failed to get CToken: ' + (response.data.message || 'Unknown error')));
-        
+
         if (response.data && response.data.code === 0) {
             currentCToken = response.data.data.ctoken;
         }
     } catch (error) {
-        document.getElementById('ctokenResponseTime').innerHTML = `Timestamp: ${getTimestamp()}`;
-        setResponse('ctokenResponse', `Error: ${error.message}`);
+        stampTime('ctokenResponseTime');
+        setResponse('ctokenResponse', 'Error: ' + error.message);
     }
 }
 
@@ -276,11 +276,11 @@ function initializePatternSDK() {
 
 async function testSync() {
     if (!lovensePattern) {
-        setResponse('syncResponse', 'Error: Please initialize the Pattern SDK first');
+        setPlainText('syncResponse', 'Error: Please initialize the Pattern SDK first');
         return;
     }
     if (!currentCToken) {
-        setResponse('syncResponse', 'Error: Please get a CToken first');
+        setPlainText('syncResponse', 'Error: Please get a CToken first');
         return;
     }
     try {
@@ -291,42 +291,61 @@ async function testSync() {
             mediaEl = document.getElementById('audioElementUnique');
         }
         duration = mediaEl && !isNaN(mediaEl.duration) && mediaEl.duration > 0 ? Math.round(mediaEl.duration * 1000) : 60000;
-        let patternDataInput = document.getElementById('patternData').value;
-        if (!patternDataInput.trim()) {
-            throw new Error('Please enter pattern data or use the "Load Example" button');
-        }
-        let patternData;
-        try {
-            patternData = JSON.parse(patternDataInput);
-        } catch (e) {
-            throw new Error('Invalid JSON in pattern data');
-        }
-        let supportedApp = 3;
-        if (document.getElementById('app1').checked) supportedApp = 1;
-        else if (document.getElementById('app2').checked) supportedApp = 2;
-        else if (document.getElementById('app3').checked) supportedApp = 3;
+        const supportedRadio = document.querySelector('input[name="supportedApp"]:checked');
+        const supportedApp = supportedRadio ? parseInt(supportedRadio.value, 10) : 3;
+
+        const usePatternLink = document.getElementById('patternLinkCard').classList.contains('active');
         const syncData = {
             ctoken: currentCToken,
             mediaId: document.getElementById('mediaIdDisplay').textContent,
             duration: duration,
             videoEl: mediaEl,
-            patternData: patternData,
             btnId: 'lovense-sync-btn',
             supportedApp: supportedApp,
             syncButtonText: 'Sync with Lovense Toy',
             syncedButtonText: 'Connected to Lovense Toy'
         };
-        console.log('Lovense sync data:', JSON.stringify(syncData, null, 2));
-        document.getElementById('syncRequestTime').innerHTML = `Timestamp: ${getTimestamp()}`;
-        setResponse('syncRequest', JSON.stringify(syncData, null, 2));
+
+        if (usePatternLink) {
+            const patternLink = document.getElementById('patternLink').value.trim();
+            if (!patternLink) {
+                throw new Error('Please enter a pattern file URL in Pattern Link');
+            }
+            try {
+                new URL(patternLink);
+            } catch (e) {
+                throw new Error('Invalid pattern URL');
+            }
+            syncData.patternLink = patternLink;
+        } else {
+            const patternDataInput = document.getElementById('patternData').value;
+            if (!patternDataInput.trim()) {
+                throw new Error('Please enter pattern data or use the "Load 1-min Pattern Sample" button');
+            }
+            let patternData;
+            try {
+                patternData = JSON.parse(patternDataInput);
+            } catch (e) {
+                throw new Error('Invalid JSON in pattern data');
+            }
+            syncData.patternData = patternData;
+        }
+
+        const syncRequestPreview = {
+            ...syncData,
+            videoEl: syncData.videoEl && syncData.videoEl.tagName ? `<${syncData.videoEl.tagName.toLowerCase()}>` : syncData.videoEl
+        };
+        console.log('Lovense sync data:', syncRequestPreview);
+        stampTime('syncRequestTime');
+        setPlainText('syncRequest', JSON.stringify(syncRequestPreview, null, 2));
         document.getElementById('lovense-sync-btn').innerHTML = '';
         lovensePattern.sync(syncData);
         syncConfigured = true;
-        document.getElementById('syncResponseTime').innerHTML = `Timestamp: ${getTimestamp()}`;
-        setResponse('syncResponse', '✅ Sync button generated successfully!\n\n📱 Go to Step 4 and click the sync button to connect with your Lovense toys.\n\n💡 Make sure your toys are connected to Lovense Remote app first.');
+        stampTime('syncResponseTime');
+        setPlainText('syncResponse', '✅ Sync button generated successfully!\n\n📱 Go to Step 4 and click the sync button to connect with your Lovense toys.\n\n💡 Make sure your toys are connected to Lovense Remote app first.');
     } catch (error) {
-        document.getElementById('syncResponseTime').innerHTML = `Timestamp: ${getTimestamp()}`;
-        setResponse('syncResponse', `Error: ${error.message}`);
+        stampTime('syncResponseTime');
+        setPlainText('syncResponse', 'Error: ' + error.message);
     }
 }
 
@@ -364,16 +383,14 @@ function getTimestamp() {
     });
 }
 
-function selectSupportedApp(app) {
-    document.getElementById('app1').checked = false;
-    document.getElementById('app2').checked = false;
-    document.getElementById('app3').checked = false;
-    document.getElementById(app).checked = true;
+function stampTime(elementId) {
+    const el = document.getElementById(elementId);
+    if (el) el.innerHTML = 'Timestamp: ' + getTimestamp();
 }
 
 function clearSync() {
-    setResponse('syncRequest', 'Request will appear here...');
-    setResponse('syncResponse', 'Response will appear here...');
+    setPlainText('syncRequest', 'Request will appear here...');
+    setPlainText('syncResponse', 'Response will appear here...');
     document.getElementById('syncRequestTime').innerHTML = 'Timestamp: -';
     document.getElementById('syncResponseTime').innerHTML = 'Timestamp: -';
     syncConfigured = false;
@@ -383,28 +400,25 @@ function resetToDefaults() {
     document.getElementById('userId').value = 'deltatest';
     document.getElementById('developerToken').value = 'tf7_SsG7X8qJm5l4gSYzfdLSeaZtlLl8ZaWNOSLt_ScnbUpimwPUIxB5l9TAgNle';
     switchMediaTab('audio');
-    selectSupportedApp('app3');
-    document.getElementById('patternLink').value = '';
+    const remoteOnly = document.querySelector('input[name="supportedApp"][value="1"]');
+    if (remoteOnly) remoteOnly.checked = true;
+    document.getElementById('patternLink').value = DEFAULT_FUNSCRIPT_SAMPLE_URL;
     document.getElementById('patternData').value = '';
     syncConfigured = false;
 }
 
 document.addEventListener('DOMContentLoaded', function() {
     resetToDefaults();
+    switchPatternCard('link');
     initializePatternCards();
 });
 
-// Pattern Card Switching
+// Pattern Card Switching (one delegated listener on #patternCards)
 function initializePatternCards() {
-    const patternLinkCard = document.getElementById('patternLinkCard');
-    const patternDataCard = document.getElementById('patternDataCard');
-    
-    patternLinkCard.addEventListener('click', function() {
-        switchPatternCard('link');
-    });
-    
-    patternDataCard.addEventListener('click', function() {
-        switchPatternCard('data');
+    document.getElementById('patternCards').addEventListener('click', function (e) {
+        const card = e.target.closest('.pattern-card');
+        if (!card) return;
+        switchPatternCard(card.id === 'patternLinkCard' ? 'link' : 'data');
     });
 }
 
@@ -428,33 +442,11 @@ function switchPatternCard(type) {
 function setResponse(id, value) {
     document.getElementById(id).innerHTML = cleanResponseText(value);
 }
-async function getCToken() {
-    // 自动生成6位随机数，格式 dt_123456
-    const randomNum = Math.floor(100000 + Math.random() * 900000); // 生成100000-999999之间的随机数
-    const generatedUserId = `dt_${randomNum}`;
-    
-    // 自动填充到userId输入框
-    document.getElementById('userId').value = generatedUserId;
-    
-    const userId = generatedUserId;
-    const developerToken = document.getElementById('developerToken').value;
-    if (!developerToken) {
-        setResponse('ctokenResponse', 'Error: Please enter Developer Token');
-        return;
-    }
-    try {
-        const url = `https://api.lovense-api.com/api/media/pattern/user/ctoken?userId=${encodeURIComponent(userId)}&developerToken=${encodeURIComponent(developerToken)}`;
-        document.getElementById('ctokenRequestUrl').innerHTML = `URL: ${url}`;
-        const response = await axios.get(url);
-        document.getElementById('ctokenResponseTime').innerHTML = `Timestamp: ${getTimestamp()}`;
-        setResponse('ctokenResponse', JSON.stringify(response.data, null, 2) + ((response.data && response.data.code === 0) ? '' : '\n❌ Failed to get CToken: ' + (response.data.message || 'Unknown error')));
-        if (response.data && response.data.code === 0) {
-            currentCToken = response.data.data.ctoken;
-        }
-    } catch (error) {
-        document.getElementById('ctokenResponseTime').innerHTML = `Timestamp: ${getTimestamp()}`;
-        setResponse('ctokenResponse', `Error: ${error.message}`);
-    }
+
+/** Use for JSON/logs: innerHTML would parse "<audio>" in strings and truncate the rest. */
+function setPlainText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value == null ? '' : String(value);
 }
 
 function fillFunScriptExample() {
@@ -652,13 +644,13 @@ h5 {
     min-width: 80px;
 }
 
-.checkbox-group {
+.radio-group {
     display: flex;
     gap: 1rem;
     align-items: center;
 }
 
-.checkbox-label {
+.radio-label {
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -666,7 +658,7 @@ h5 {
     font-weight: normal;
 }
 
-.checkbox-label input[type="checkbox"] {
+.radio-label input[type="radio"] {
     margin: 0;
 }
 
@@ -757,7 +749,7 @@ h5 {
         min-width: auto;
     }
     
-    .checkbox-group {
+    .radio-group {
         flex-direction: column;
         align-items: flex-start;
         gap: 0.5rem;
