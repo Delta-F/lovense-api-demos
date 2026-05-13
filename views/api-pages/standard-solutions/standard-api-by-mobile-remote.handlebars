@@ -1,6 +1,14 @@
 <div class="api-documentation">
     <h1>Standard API - Mobile Remote Control</h1>
 
+    <div class="test-section dev-token-section">
+        <h3>Developer token</h3>
+        <p class="info-text">Paste your Lovense developer token here (used for QR code requests). You can also change the default in the page script: <code>DEFAULT_TOKEN</code>.</p>
+        <div class="token-input-group">
+            <input type="text" id="dev-token" class="form-control" autocomplete="off" spellcheck="false" placeholder="Developer token">
+        </div>
+    </div>
+
     <!-- API Reference -->
     <div class="api-reference">
         <p>This implementation is based on the <a href="https://developer.lovense.com/docs/standard-solutions/standard-api.html" target="_blank">Official Lovense Standard API Documentation</a>.</p>
@@ -548,7 +556,19 @@
 
 <script>
 const API_BASE = '/api/v2';
+/** Default token; synced into #dev-token on load */
 const DEFAULT_TOKEN = "tf7_SsG7X8qJm5l4gSYzfdLSeaZtlLl8ZaWNOSLt_ScnbUpimwPUIxB5l9TAgNle";
+
+(function syncDevTokenInput() {
+    const el = document.getElementById('dev-token');
+    if (el) el.value = DEFAULT_TOKEN;
+})();
+
+function getDevToken() {
+    const raw = document.getElementById('dev-token')?.value;
+    const trimmed = typeof raw === 'string' ? raw.trim() : '';
+    return trimmed || DEFAULT_TOKEN;
+}
 
 function generateMD5(string) {
     if (typeof CryptoJS === 'undefined') {
@@ -562,7 +582,7 @@ async function getQRCode() {
         const qrcodeDiv = document.getElementById('qrcode');
         qrcodeDiv.innerHTML = 'Generating QR Code...';
         
-        const token = DEFAULT_TOKEN;  // Always use default token
+        const token = getDevToken();
         const uid = document.getElementById('custom-user-id').value || "test_" + Math.random().toString(36).substr(2, 9);
         const uname = "user_" + uid;
         const utoken = generateMD5(uid + "salt");
